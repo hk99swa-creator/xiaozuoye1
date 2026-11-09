@@ -1,0 +1,305 @@
+-- 一、建表
+USE TPCH_;
+CREATE TABLE Region(
+	regionkey INT,
+	name CHAR(25),
+	comment VARCHAR(152),
+	CONSTRAINT PK_Region PRIMARY KEY(regionkey)
+);
+CREATE TABLE Nation(
+	nationkey INT,
+	name CHAR(25),
+	regionkey INT,
+	comment VARCHAR(152),
+	CONSTRAINT PK_Nation PRIMARY KEY(nationkey),
+	CONSTRAINT FK_Nation_Region FOREIGN KEY (regionkey) REFERENCES Region (regionkey) 
+);
+CREATE TABLE Supplier(
+	suppkey INT,
+	name CHAR(25),
+	address VARCHAR(40),
+	nationkey INT,
+	phone CHAR(15),
+	acctbal DECIMAL(10,2),
+  comment VARCHAR(101),
+	CONSTRAINT PK_Supplier PRIMARY KEY(suppkey),
+	CONSTRAINT FK_Supplier_Nation FOREIGN KEY (nationkey) REFERENCES Nation(nationkey)
+);
+CREATE TABLE Part (
+    partkey INT,
+    name VARCHAR(55),
+    mfgr CHAR(25),
+    brand CHAR(10),
+    type VARCHAR(25),
+    size INT,
+    container CHAR(10),
+    retailprice DECIMAL(10,2),
+    comment VARCHAR(23),
+		CONSTRAINT PK_Part PRIMARY KEY(partkey)
+);
+CREATE TABLE PartSupp (
+    partkey INT,
+    suppkey INT,
+    availqty INT,
+    supplycost DECIMAL(10,2),
+    comment VARCHAR(199),
+    CONSTRAINT PK_PartSupp PRIMARY KEY (partkey, suppkey),
+		CONSTRAINT FK_PartSupp_Part FOREIGN KEY (partkey) REFERENCES Part(partkey),
+    CONSTRAINT FK_PartSupp_Supplier FOREIGN KEY (suppkey) REFERENCES Supplier(suppkey)
+);
+CREATE TABLE Customer (
+    custkey INT,
+    name VARCHAR(25),
+    address VARCHAR(40),
+    nationkey INT,
+    phone CHAR(15),
+    acctbal DECIMAL(10,2),
+    mktsegment CHAR(10),
+    comment VARCHAR(117),
+		CONSTRAINT PK_Customer PRIMARY KEY(custkey),
+    CONSTRAINT FK_Customer_Nation FOREIGN KEY (nationkey) REFERENCES Nation(nationkey)
+);
+CREATE TABLE Orders (
+    orderkey INT,
+    custkey INT,
+    orderstatus CHAR(1),
+    totalprice DECIMAL(10,2),
+    orderdate DATE,
+    orderpriority CHAR(15),
+    clerk CHAR(15),
+    shippriority INT,
+    comment VARCHAR(79),
+		CONSTRAINT PK_Orders PRIMARY KEY(orderkey),
+    CONSTRAINT FK_Orders_Customer FOREIGN KEY (custkey) REFERENCES Customer(custkey)
+);
+CREATE TABLE Lineitem (
+    orderkey INT,
+    partkey INT,
+    suppkey INT,
+    linenumber INT,
+    quantity DECIMAL(10,2),
+    extendedprice DECIMAL(10,2),
+    discount DECIMAL(10,2),
+    tax DECIMAL(10,2),
+    returnflag CHAR(1),
+    linestatus CHAR(1),
+    shipdate DATE,
+    commitdate DATE,
+    receiptdate DATE,
+    shipinstruct CHAR(25),
+    shipmode CHAR(10),
+    comment VARCHAR(44),
+    CONSTRAINT PK_Lineitem PRIMARY KEY (orderkey, linenumber),
+    CONSTRAINT FK_Lineitem_Orders FOREIGN KEY (orderkey) REFERENCES Orders(orderkey),
+    CONSTRAINT FK_Lineitem_PartSupp FOREIGN KEY (partkey, suppkey) REFERENCES PartSupp(partkey, suppkey)
+);
+
+-- 做到3发现少约束
+ALTER TABLE Part
+ADD CONSTRAINT CHK_Part_Price CHECK (retailprice > 0);
+
+
+
+-- 二、插入数据
+USE TPCH_;
+-- 1.region(只作为主键，不作为外键且被多个下级外键引用，最先插入)
+INSERT INTO Region (regionkey,name,comment) VALUES
+(0,'AFRICA','African region'),(1,'AMERICA','American region'),(2,'ASIA','Asian region'),
+(3,'EUROPE','Eupore region'),(4,'MIDDLE EAST','Middle East region');
+
+-- 2.nation(唯一向上关联主键为region，放在region后插入)
+INSERT INTO Nation(nationkey,name,regionkey,comment) VALUES
+(1,'ALGERIA',0,'North Africa'),(2,'BRAZIL',1,'South America'),(3,'CHINA',2,'East Asia'),
+(4,'GERMANY',3,'Central Europe'),(5,'EGYPT',4,'North Africa and Middle East'),(6,'FRANCE',3,'Western Europe');
+
+-- 3.Supplier（供应商，作为外键只向上链接国家）
+INSERT INTO Supplier(suppkey,name,address,nationkey,phone,acctbal,comment) VALUES
+(101,'金仓集团','北京市海淀区',3,'138-0011-0011',50000.00,'国产数据库厂商'),
+(102, '莱茵工业', '慕尼黑工业区', 4, '49-89-0000', 88000.00, '德国精密制造'),
+(103, 'Amazonia Parts', '圣保罗', 2, '55-11-0000', 60000.00, '南美零件供应商'),
+(104, 'Nile Trade', '开罗', 5, '20-2-0000', 72000.00, '埃及进出口公司');
+
+-- 4.part(零件，只作为主键，因为在第二行所以这里才插入（）)
+INSERT INTO Part(partkey,name,mfgr,brand,type,size,container,retailprice,comment) VALUES
+(1,'螺丝钉A','MFGR#1','BRAND#11', 'SMALL', 1, 'SM BOX', 0.50, 'standard screw'),
+(2, '芯片B', 'MFGR#2', 'BRAND#22', 'MEDIUM', 5, 'MD PKG', 150.00, 'high-performance chip'),
+(3, '外壳C', 'MFGR#1', 'BRAND#11', 'LARGE', 50, 'LG CASE', 80.00, 'plastic case'),
+(4, '传感器D', 'MFGR#3', 'BRAND#33', 'SMALL', 3, 'SM BOX', 120.00, 'precision sensor'),
+(5, '猎刀', 'MFGR#4', 'BRAND#44', 'LARGE', 20, 'SM BOX', 299.00, 'hunting knife');
+
+-- 5.Partsupp(零件供应，它作为外键要上连的两个在前两步插入了，这步可以插入它)
+INSERT INTO PartSupp(partkey,suppkey,availqty,supplycost,comment) VALUES
+(1, 101, 100, 0.20, '金仓供应螺丝钉A'),
+(1, 102, 5, 0.22, '莱茵供应螺丝钉A，库存紧张'),
+(2, 101, 500, 180.50, '金仓供应芯片B'),
+(3, 103, 200, 60.00, 'Amazonia供应外壳C'),
+(4, 104, 8, 42000.00, 'Nile供应传感器D，库存紧张'),
+(5, 102, 30, 200.00, '莱茵工业供应猎刀');
+
+-- 6.Customer(顾客，其实理由都和上面差不多，我就是按表结构顺序)
+INSERT INTO Customer(custkey,name,address,nationkey,phone,acctbal,mktsegment,comment) VALUES
+(201, 'Lorentz Butterfly', '巴黎市左岸', 6, '+44-4-4444', 25000.00, 'HOUSEHOLD', 'chaos theory researcher'),
+(202, '佩施塔', '柏林市米特区', 4, '+49-30-7777', 18000.00, 'HOUSEHOLD', 'a different telling of the old tale'),
+(203, 'Cleopatra', '开罗市吉萨', 5, '+20-100-6666', 30000.00, 'MACHINERY', '埃及客户'),
+(204, '苏举库', '上海市浦东新区', 3, '186-1111-2222', 12000.00, 'BUILDING', '重要客户'),
+(205, '张三', '广州市天河区', 3, '186-3333-4444', 8500.00, 'AUTOMOBILE', '普通客户');
+
+-- 7.Orders(订单，同上)
+INSERT INTO Orders(orderkey,custkey,orderstatus,totalprice,orderdate,orderpriority,clerk,shippriority,comment) VALUES
+(1001, 201, 'O', 1500.00, '2026-09-28', '2-HIGH', 'Clerk#03', 0, 'Lorentz订单1-买芯片'),
+(1002, 201, 'F', 750.00, '2026-10-01', '1-URGENT', 'Clerk#04', 1, 'Lorentz订单2-买芯片'),
+(1003, 201, 'O', 1500.00, '2026-10-03', '3-MEDIUM', 'Clerk#03', 0, 'Lorentz订单3-买芯片'),
+(1004, 202, 'F', 299.00, '2026-10-05', '2-HIGH', 'Clerk#05', 0, '佩施塔订单-买猎刀'),
+(1005, 203, 'O', 42000.00, '2026-10-06', '4-NOT SPECIFIED', 'Clerk#01', 1, 'Cleopatra订单-传感器'),
+(1006, 204, 'F', 50.00, '2026-10-07', '3-MEDIUM', 'Clerk#02', 0, '苏举库订单-螺丝钉'),
+(1007, 205, 'O', 1.10, '2026-10-08', '5-LOW', 'Clerk#02', 1, '张三订单-螺丝钉');
+
+-- 8.Lineitem(订单明细，同上)
+INSERT INTO Lineitem (orderkey,partkey,suppkey,linenumber,quantity,extendedprice,discount,tax,returnflag,linestatus,shipdate,commitdate,receiptdate,shipinstruct,shipmode,comment) VALUES
+(1001, 2, 101, 1, 10, 1500.00, 0.00, 0.08, 'N', 'O', '2026-09-29', '2026-09-30', '2026-10-01', 'DELIVER IN PERSON', 'AIR', 'Lorentz的芯片1'),
+(1002, 2, 101, 1, 5, 750.00, 0.00, 0.08, 'N', 'F', '2026-10-02', '2026-10-03', '2026-10-04', 'DELIVER IN PERSON', 'AIR', 'Lorentz的芯片2'),
+(1003, 2, 101, 1, 10, 1500.00, 0.00, 0.08, 'N', 'O', '2026-10-04', '2026-10-05', '2026-10-06', 'DELIVER IN PERSON', 'AIR', 'Lorentz的芯片3'),
+(1004, 5, 102, 1, 1, 299.00, 0.00, 0.00, 'N', 'F', '2026-10-06', '2026-10-07', '2026-10-08', 'FRAGILE', 'TRUCK', '佩施塔的猎刀'),
+(1005, 4, 104, 1, 1, 42000.00, 0.05, 0.08, 'N', 'O', '2026-10-07', '2026-10-08', '2026-10-09', 'FRAGILE', 'TRUCK', 'Cleopatra的传感器'),
+(1006, 1, 101, 1, 100, 50.00, 0.00, 0.00, 'N', 'F', '2026-10-08', '2026-10-09', '2026-10-10', 'NONE', 'MAIL', '苏举库的螺丝钉'),
+(1007, 1, 102, 1, 5, 1.10, 0.00, 0.00, 'N', 'O', '2026-10-09', '2026-10-10', '2026-10-11', 'NONE', 'RAIL', '张三的螺丝钉');
+
+
+
+-- 三、故意触发约束冲突
+USE TPCH_;
+
+-- 主键冲突：向Region插入重复regionkey
+INSERT INTO Region(regionkey,name,comment) VALUES
+(3,'EUROPE','European region');
+
+-- 外键冲突（插入）：向 Nation 插入一条 regionkey 在 Region 表中不存在的记录。
+INSERT INTO Nation(nationkey,name,regionkey,comment)VALUES
+(7,South Pole,5,south pole);
+
+-- 外键冲突（删除）：先插入关联的 Region 和 Nation 数据，然后尝试直接删除 Region中被引用的记录。
+DELETE FROM Region WHERE regionkey=1;
+
+DELETE FROM Part WHERE partkey = 6;
+
+
+-- 检查约束冲突：向 Part 插入一条 retailprice <= 0 的记录；向 PartSupp 插入一条availqty < 0 的记录。
+INSERT INTO Part(partkey,name,mfgr,brand,type,size,container,retailprice,comment)
+VALUES (6,'手枪','MFGR#9','BRAND#99','SMALL',5,'SM BOX',-444,'test');
+
+INSERT INTO PartSupp(partkey,suppkey,availqty,supplycost,comment)
+VALUES (2,102,-100,0.20,'test');
+
+ALTER TABLE PartSupp
+ADD CONSTRAINT CHK_PartSupp_Qty CHECK (availqty >= 0);
+
+
+-- 四、级连删除设计
+-- 如果希望删除一个地区时，数据库自动删除其下所有国家，应如何修改建表语句？写出修改后的
+-- Nation 表外键定义，并简要说明其执行效果（本题为必做项，计入阶段二总分）。
+
+-- 使用外键级连删除；在外键定义尾端加上 ON DELETE CASCADE  
+CREATE TABLE Nation (
+    nationkey INT,
+    name CHAR(25),
+    regionkey INT,
+    comment VARCHAR(152),
+    CONSTRAINT PK_Nation PRIMARY KEY (nationkey),
+    CONSTRAINT FK_Nation_Region FOREIGN KEY (regionkey) REFERENCES Region (regionkey) ON DELETE CASCADE -- 修改行                   
+);
+-- 执行效果：ON DELETE CASCADE：当父表记录被删除时，让效果级连传递到子表，故执行DELETE FROM Region WHERE regionkey = ;
+-- 时会先删除所有nationkey= 的国家纪录
+
+
+-- 五、聚合统计与分组查询
+-- 按供应商所在国家进行统计，输出以下信息：
+-- • 国家名称（Nation.name）
+-- • 供应商数量（COUNT(DISTINCT Supplier.suppkey)）
+-- • 提供的零件种类数（COUNT(DISTINCT PartSupp.partkey)）
+-- • 总可用库存量（SUM(PartSupp.availqty)）
+-- • 平均供应价格（AVG(PartSupp.supplycost)）
+-- 要求：
+-- • 使用 GROUP BY 分组
+-- • 仅显示总可用库存量大于 500 的国家（使用 HAVING 子句）
+
+SELECT N.name 国家名称,
+	COUNT(DISTINCT S.suppkey) 供应商数量,
+	COUNT(DISTINCT PS.partkey) 提供的零件种类数,
+	SUM(PS.availqty) 总可用库存量,
+	AVG(PS.supplycost) 平均供应价格
+FROM Nation N,Supplier S,PartSupp PS WHERE N.nationkey = S.nationkey AND S.suppkey = PS.suppkey
+GROUP BY N.name
+HAVING (SUM(PS.availqty)>500);
+
+
+-- 六、嵌套/相关子查询
+-- 查询账户余额高于其所在国家平均账户余额的顾客，输出以下信息：
+-- • 顾客姓名（Customer.name）
+-- • 国家名称（Nation.name）
+-- • 顾客账户余额（Customer.acctbal）
+-- 要求：
+-- • 使用相关子查询计算各国的平均余额（一个国家下所有客户的平均余额）
+-- • 外层查询筛选满足条件的顾客记录
+-- 额外编写一条 SQL，查询从未下过任何订单的顾客（使用 NOT EXISTS 子查询）。
+SELECT C.name 顾客姓名,N.name 国家名称,C.acctbal 顾客账户余额 
+FROM Customer C,Nation N WHERE C.nationkey = N.nationkey 
+AND C.acctbal>(SELECT AVG(C2.acctbal)FROM Customer C2 WHERE C2.nationkey = C.nationkey);
+
+
+INSERT INTO Customer (custkey, name, address, nationkey, phone, acctbal, mktsegment, comment) VALUES 
+(206, '无订单测试', '测试地址', 1, '000-0000-0000', 5000.00, 'BUILDING', '从未下单的顾客');
+SELECT C.*
+FROM Customer C WHERE NOT EXISTS(SELECT * FROM Orders O WHERE C.custkey = O.custkey);
+DELETE FROM Customer WHERE custkey = 206;
+
+
+
+-- 七、库存预警触发器设计
+-- 业务规则：当 PartSupp 表中某个零件-供应商组合的可用数量（availqty）低于 10
+-- 时，系统应自动记录预警日志。
+-- 1. 设计预警日志表（4 分）
+-- 创建 StockAlert_Log 表，包含以下字段：
+-- • alert_id：自增主键
+-- • partkey：零件编号（INT）
+-- • suppkey：供应商编号（INT）
+-- • alert_time：报警时间（TIMESTAMP，默认当前时间）
+-- 写出完整的 CREATE TABLE 语句。
+CREATE TABLE StockAlert_Log(
+alert_id INT AUTO_INCREMENT, -- 自动编号
+partkey INT,
+suppkey INT,
+alert_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+CONSTRAINT PK_StockAlert_Log PRIMARY KEY (alert_id)
+);
+
+
+-- 2. 创建触发器（14 分）
+-- 创建 AFTER UPDATE 触发器 trg_partsupp_lowstock，在 PartSupp 表更新后触发：
+-- 当 NEW.availqty < 10 且 OLD.availqty >= 10（即由安全值跌入预警区间）时，向
+-- StockAlert_Log 插入一条记录（包含 partkey、suppkey，时间自动记录）。
+-- 写出完整的触发器创建语句。
+DELIMITER $$
+
+CREATE TRIGGER trg_partsupp_lowstock 
+AFTER UPDATE ON PartSupp
+FOR EACH ROW
+BEGIN
+	IF NEW.availqty < 10 AND OLD.availqty >= 10 THEN
+	INSERT INTO StockAlert_Log(partkey,suppkey) VALUES
+	(NEW.partkey,NEW.suppkey);
+	END IF;
+END $$
+
+DELIMITER;
+
+-- 3. 测试触发器（7 分）
+-- 执行以下 UPDATE 语句进行测试，并截图 SELECT * FROM StockAlert_Log; 的结果：
+-- • 将一条 availqty 从 50 更新为 5（应触发预警）
+-- • 将一条 availqty 从 15 更新为 12（不应触发，因为新值仍 ≥ 10）
+UPDATE PartSupp SET availqty = 50 WHERE partkey=1 AND suppkey=101;
+UPDATE PartSupp SET availqty = 5 WHERE partkey=1 AND suppkey=101;
+SELECT * FROM StockAlert_Log;
+
+UPDATE PartSupp SET availqty = 15 WHERE partkey=5 AND suppkey=102;
+UPDATE PartSupp SET availqty = 12 WHERE partkey=5 AND suppkey=102;
+SELECT * FROM StockAlert_Log;
